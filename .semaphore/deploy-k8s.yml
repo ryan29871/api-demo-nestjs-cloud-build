@@ -1,0 +1,46 @@
+version: v1.0
+name: Deploy to Kubernetes
+agent:
+  machine:
+    type: e1-standard-2
+    os_image: ubuntu1804
+blocks:
+  - name: Deploy to Kubernetes
+    task:
+      secrets:
+        - name: gcr-secret
+      env_vars:
+        - name: CLUSTER_NAME
+          value: api-demo-nestjs-server
+      prologue:
+        commands:
+          - gcloud auth activate-service-account --key-file=.secrets.gcp.json
+          - gcloud auth configure-docker -q
+          - gcloud config set project $GCP_PROJECT_ID
+          - gcloud config set compute/zone $GCP_PROJECT_DEFAULT_ZONE
+          - gcloud container clusters get-credentials $CLUSTER_NAME --zone $GCP_PROJECT_DEFAULT_ZONE --project $GCP_PROJECT_ID
+          - checkout
+      jobs:
+        - name: Deploy
+          commands:
+            - kubectl get nodes
+            - kubectl get pods
+            - cat deployment.yml | envsubst | tee deployment.yml
+            - kubectl apply -f deployment.yml
+  - name: Tag latest release
+    task:
+      secrets:
+        - name: gcr-secret
+      prologue:
+        commands:
+          - gcloud auth activate-service-account --key-file=.secrets.gcp.json
+          - gcloud auth configure-docker -q
+          - gcloud config set project $GCP_PROJECT_ID
+          - gcloud config set compute/zone $GCP_PROJECT_DEFAULT_ZONE
+          - checkout
+      jobs:
+        - name: docker tag latest
+          commands:
+            - 'docker pull "gcr.io/$GCP_PROJECT_ID/api-demo-nestjs-server:$SEMAPHORE_WORKFLOW_ID"'
+            - 'docker tag "gcr.io/$GCP_PROJECT_ID/api-demo-nestjs-server:$SEMAPHORE_WORKFLOW_ID" "gcr.io/$GCP_PROJECT_ID/api-demo-nestjs-server:latest"'
+            - 'docker push "gcr.io/$GCP_PROJECT_ID/api-demo-nestjs-server:latest"'

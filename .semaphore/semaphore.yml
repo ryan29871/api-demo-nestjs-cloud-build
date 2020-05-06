@@ -1,0 +1,62 @@
+version: v1.0
+name: Semaphore Nodejs Example Pipeline
+agent:
+  machine:
+    type: e1-standard-2
+    os_image: ubuntu1804
+blocks:
+  - name: Install dependencies
+    task:
+      env_vars:
+        - name: NODE_ENV
+          value: test
+        - name: CI
+          value: 'true'
+      prologue:
+        commands:
+          - checkout
+          - nvm use
+          - node --version
+          - npm --version
+      jobs:
+        - name: npm install and cache
+          commands:
+            - cache restore
+            - npm install
+            - cache store
+  - name: Tests
+    task:
+      env_vars:
+        - name: NODE_ENV
+          value: test
+        - name: CI
+          value: 'true'
+      prologue:
+        commands:
+          - checkout
+          - nvm use
+          - node --version
+          - npm --version
+      jobs:
+        - name: Lint
+          commands:
+            - cache restore
+            - npm run lint
+        - name: Unit tests
+          commands:
+            - cache restore
+            - npm test
+        - name: E2E tests
+          commands:
+            - sem-service start postgres
+            - cache restore
+            - cp ormconfig.ci.json ormconfig.json
+            - 'npm run migrate:up'
+            - 'npm run test:e2e'
+promotions:
+  - name: Dockerize
+    pipeline_file: docker-build.yml
+    auto_promote_on:
+      - result: passed
+    auto_promote:
+      when: branch = 'master' AND result = 'passed'

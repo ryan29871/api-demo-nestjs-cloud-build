@@ -1,0 +1,33 @@
+version: v1.0
+name: Docker build
+agent:
+  machine:
+    type: e1-standard-2
+    os_image: ubuntu1804
+blocks:
+  - name: Build
+    task:
+      secrets:
+        - name: gcr-secret
+        - name: production-env
+      prologue:
+        commands:
+          - gcloud auth activate-service-account --key-file=.secrets.gcp.json
+          - gcloud auth configure-docker -q
+          - gcloud config set project $GCP_PROJECT_ID
+          - gcloud config set compute/zone $GCP_PROJECT_DEFAULT_ZONE
+          - checkout
+      jobs:
+        - name: Docker build
+          commands:
+            - cp /home/semaphore/ormconfig.production.json ormconfig.json
+            - cp /home/semaphore/production.env production.env
+            - 'docker pull "gcr.io/$GCP_PROJECT_ID/api-demo-nestjs-server:latest" || true'
+            - 'docker build --cache-from "gcr.io/$GCP_PROJECT_ID/api-demo-nestjs-server:latest" -t "gcr.io/$GCP_PROJECT_ID/api-demo-nestjs-server:$SEMAPHORE_WORKFLOW_ID" .'
+            - docker images
+            - 'docker push "gcr.io/$GCP_PROJECT_ID/api-demo-nestjs-server:$SEMAPHORE_WORKFLOW_ID"'
+promotions:
+  - name: Deploy to Kubernetes
+    pipeline_file: deploy-k8s.yml
+    auto_promote_on:
+      - result: passed

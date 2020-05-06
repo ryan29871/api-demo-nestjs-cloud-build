@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-demo-nestjs-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-demo-nestjs-server
+  template:
+    metadata:
+      labels:
+        app: api-demo-nestjs-server
+    spec:
+      containers:
+        - name: api-demo-nestjs-server
+          image: gcr.io/$GCP_PROJECT_ID/api-demo-nestjs-server:$SEMAPHORE_WORKFLOW_ID
+          env:
+            - name: NODE_ENV
+              value: "production"
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-demo-nestjs-server-lb
+spec:
+  selector:
+    app: api-demo-nestjs-server
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 3001
